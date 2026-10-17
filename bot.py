@@ -1,10 +1,13 @@
 import os
 import uuid
 import telebot
+from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 import yt_dlp
 
 TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
+
+user_data = {}
 
 try:
   bot.remove_webhook()
@@ -16,7 +19,7 @@ except Exception:
 def send_welcome(message):
   bot.reply_to(
       message,
-      'Salam! Mənə istənilən media linkini at, dərhal yükləyim!',
+      'Salam! Mənə istənilən media linkini at, formatı seç və dərhal yükləyim!',
   )
 
 
@@ -28,15 +31,42 @@ def handle_link(message):
     bot.reply_to(message, 'Zəhmət olmasa etibarlı link göndərin.')
     return
 
-  msg = bot.reply_to(message, '⏳ Media yüklənir, zəhmət olmasa gözləyin...')
+  user_data[message.chat.id] = url
 
-  # Fayl adı uzunluğu xətasını qəti olaraq önləmək üçün unikal qısa ID yaradırıq
-  unique_filename = str(uuid.uuid4())
+  # Format seçimi üçün düymələr
+  markup = InlineKeyboardMarkup()
+  btn_video = InlineKeyboardButton(
+      '🎬 Video İndir', callback_data='dl_video'
+  )
+  btn_audio = InlineKeyboardButton(
+      '🎵 MP3 İndir', callback_data='dl_audio'
+  )
+  markup.add(btn_video, btn_audio)
 
+  bot.reply_to(
+      message, 'Lütfən yükləmək istədiyiniz formatı seçin:', reply_markup=markup
+  )
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('dl_'))
+def callback_download(call):
+  chat_id = call.message.chat.id
+  url = user_data.get(chat_id)
+
+  if not url:
+    bot.answer_callback_query(
+        call.id, 'Link tapılmadı, zəhmət olmasa linki yenidən atın.'
+    )
+    return
+
+  mode = call.data
+  bot.edit_message_text(
+      '⏳ Yüklənir, xahiş olunur gözləyin...', chat_id, call.message.message_id
+  )
+
+  unique_id = str(uuid.uuid4())
   ydl_opts = {
-      'outtmpl': f'downloads/{unique_filename}.%(ext)s',
-      'format': 'best',
-      'noplaylist': True,
+      'outtmpl': f'downloads/{unique_id}.%(ext)s',
       'geo_bypass': True,
       'nocheckcertificate': True,
       'socket_timeout': 20,
@@ -45,6 +75,11 @@ def handle_link(message):
       },
   }
 
+  if mode == 'dl_audio':
+    ydl_opts.update({'format': 'bestaudio/best'})
+  else:
+    ydl_opts.update({'format': 'best/bestvideo+bestaudio'})
+
   try:
     os.makedirs('downloads', exist_ok=True)
 
@@ -52,30 +87,28 @@ def handle_link(message):
       info = ydl.extract_info(url, download=True)
       filename = ydl.prepare_filename(info)
 
-    # Əgər fayl başqa uzantı ilə yadda qalıbsa, qovluqdan tapırıq
     if not os.path.exists(filename):
       for f in os.listdir('downloads'):
-        if f.startswith(unique_filename):
+        if f.startswith(unique_id):
           filename = os.path.join('downloads', f)
           break
 
     with open(filename, 'rb') as f:
-      if filename.endswith(('.mp3', '.m4a', '.wav', '.flac', '.opus')):
-        bot.send_audio(message.chat.id, f, caption='🎵 Səs faylı yükləndi')
+      if mode == 'dl_audio':
+        bot.send_audio(chat_id, f, caption='🎵 MP3 olaraq yükləndi')
       else:
-        bot.send_video(message.chat.id, f, caption='🎬 Video yükləndi')
+        bot.send_video(chat_id, f, caption='🎬 Video olaraq yükləndi')
 
-    bot.delete_message(message.chat.id, msg.message_id)
+    bot.delete_message(chat_id, call.message.message_id)
     if os.path.exists(filename):
       os.remove(filename)
 
   except Exception as e:
     bot.edit_message_text(
-        f'❌ Xəta baş verdi: {str(e)}', message.chat.id, msg.message_id
+        f'❌ Xəta baş verdi: {str(e)}', chat_id, call.message.message_id
     )
 
 
 if __name__ == '__main__':
   print('Bot serverdə işə düşdü...')
   bot.infinity_polling()
-  
