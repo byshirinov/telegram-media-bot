@@ -1,12 +1,15 @@
 import os
 import telebot
-from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 import yt_dlp
 
 TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
-user_data = {}
+# Əvvəlki xarici bağlantı və ya webhook xətalarını təmizləyirik
+try:
+  bot.remove_webhook()
+except Exception:
+  pass
 
 
 @bot.message_handler(commands=['start', 'help'])
