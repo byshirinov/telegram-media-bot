@@ -6,7 +6,6 @@ import yt_dlp
 TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
-# İstifadəçilərin göndərdiyi linkləri müvəqqəti saxlamaq üçün
 user_data = {}
 
 
@@ -31,13 +30,12 @@ def handle_link(message):
 
   user_data[message.chat.id] = url
 
-  # Düymələri hazırlayırıq
   markup = InlineKeyboardMarkup()
   btn_video = InlineKeyboardButton(
       '🎬 Video İndir', callback_data='dl_video'
   )
   btn_audio = InlineKeyboardButton(
-      '🎵 MP3 (Ses) İndir', callback_data='dl_audio'
+      '🎵 MP3 (Səs) İndir', callback_data='dl_audio'
   )
   markup.add(btn_video, btn_audio)
 
@@ -57,20 +55,17 @@ def callback_download(call):
     )
     return
 
-  mode = call.data  # 'dl_video' və ya 'dl_audio'
-  bot.edit_message_text('⏳ Yüklənir, xahiş olunur gözləyin...', chat_id, call.message.message_id)
+  mode = call.data
+  bot.edit_message_text(
+      '⏳ Yüklənir, xahiş olunur gözləyin...', chat_id, call.message.message_id
+  )
 
-  # YouTube bloklamasını aşmaq üçün client ayarları
   ydl_opts = {
       'outtmpl': 'downloads/%(id)s.%(ext)s',
       'geo_bypass': True,
       'nocheckcertificate': True,
       'quiet': True,
-      'extractor_args': {
-          'youtube': {
-              'player_client': ['android', 'ios', 'web']
-          }
-      }
+      'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
   }
 
   if mode == 'dl_audio':
@@ -84,7 +79,7 @@ def callback_download(call):
     })
   else:
     ydl_opts.update({
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': 'best/bestvideo+bestaudio',
     })
 
   try:
@@ -93,15 +88,14 @@ def callback_download(call):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
       info = ydl.extract_info(url, download=True)
       filename = ydl.prepare_filename(info)
-
       if mode == 'dl_audio':
         filename = os.path.splitext(filename)[0] + '.mp3'
 
     with open(filename, 'rb') as f:
       if mode == 'dl_audio':
-        bot.send_audio(chat_id, f, caption='🎵 Yükləndi')
+        bot.send_audio(chat_id, f, caption='🎵 MP3 olaraq yükləndi')
       else:
-        bot.send_video(chat_id, f, caption='🎬 Yükləndi')
+        bot.send_video(chat_id, f, caption='🎬 Video olaraq yükləndi')
 
     bot.delete_message(chat_id, call.message.message_id)
     if os.path.exists(filename):
