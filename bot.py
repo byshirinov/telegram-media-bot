@@ -1,9 +1,7 @@
-
 import os
 import telebot
 import yt_dlp
 
-# Token server tənzimləmələrindən (Environment Variable) götürüləcək
 TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
@@ -32,6 +30,11 @@ def download_media(message):
   ydl_opts = {
       'outtmpl': 'downloads/%(id)s.%(ext)s',
       'format': 'best',
+      'noplaylist': True,
+      'geo_bypass': True,
+      'nocheckcertificate': True,
+      'ignoreerrors': False,
+      'no_warnings': True,
   }
 
   try:
